@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Flappy Floyd</title>
+    <style>
+        canvas { border: 1px solid black; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #87CEEB; }
+        #game-over { position: absolute; font-size: 48px; color: red; display: none; }
+        #win { position: absolute; font-size: 48px; color: gold; display: none; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="game-over">Game Over! Press B to Breaft</div>
+    <div id="win">You Win! Score: 69</div>
+    <script>
+        console.log("Script running...");
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverText = document.getElementById('game-over');
+        const winText = document.getElementById('win');
+        console.log("Canvas context:", ctx);
+
+        const cacheBuster = Date.now();
+        const donkeyImg = new Image();
+        donkeyImg.src = `donkey.png?cb=${cacheBuster}`;
+        const pipeImg = new Image();
+        pipeImg.src = `pipe.png?cb=${cacheBuster}`;
+        const jumpSound = new Audio('jump.wav');
+        const dieSound = new Audio('die.wav');
+
+        donkeyImg.onerror = () => console.error("Error loading donkey.png - using fallback");
+        pipeImg.onerror = () => console.error("Error loading pipe.png - using fallback");
+        jumpSound.onloadeddata = () => console.log("jump.wav loaded successfully");
+        jumpSound.onerror = () => console.error("Error loading jump.wav");
+        dieSound.onloadeddata = () => console.log("die.wav loaded successfully");
+        dieSound.onerror = () => console.error("Error loading die.wav");
+
+        let donkey = { x: 100, y: 300, vy: 0, width: 50, height: 50 };
+        const gravity = 0.3;
+        const jump = -7;
+        let pipes = [];
+        let score = 0;
+        let gameOver = false;
+        let gameWon = false;
+        const pipeWidth = 50;
+        const pipeSourceWidth = 50;
+        const pipeSourceHeight = 400;
+        const pipeGap = 175;
+        const pipeSpeed = 2;
+
+        function createPipe() {
+            const topHeight = Math.random() * (canvas.height - pipeGap - 100) + 50;
+            return { x: canvas.width, top: topHeight, bottom: canvas.height - topHeight - pipeGap, scored: false };
+        }
+        pipes.push(createPipe());
+
+        function update() {
+            if (gameOver || gameWon) return;
+
+            donkey.vy += gravity;
+            donkey.y += donkey.vy;
+            if (donkey.y + donkey.height > canvas.height || donkey.y < 0) {
+                gameOver = true;
+                dieSound.play().catch(err => console.error("Die sound failed:", err));
+            }
+
+            pipes.forEach(pipe => {
+                pipe.x -= pipeSpeed;
+                if (
+                    donkey.x + donkey.width > pipe.x && 
+                    donkey.x < pipe.x + pipeWidth && 
+                    (donkey.y < pipe.top || donkey.y + donkey.height > canvas.height - pipe.bottom)
+                ) {
+                    gameOver = true;
+                    dieSound.play().catch(err => console.error("Die sound failed:", err));
+                }
+                if (pipe.x + pipeWidth < donkey.x && !pipe.scored) {
+                    score++;
+                    pipe.scored = true;
+                    if (score === 69) gameWon = true; 
+                }
+            });
+            if (pipes[0].x < -pipeWidth) {
+                pipes.shift();
+                pipes.push(createPipe());
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (donkeyImg.complete && donkeyImg.naturalWidth !== 0) {
+                ctx.drawImage(donkeyImg, donkey.x, donkey.y, donkey.width, donkey.height);
+            } else {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(donkey.x, donkey.y, donkey.width, donkey.height);
+            }
+            pipes.forEach(pipe => {
+                if (pipeImg.complete && pipeImg.naturalWidth !== 0) {
+                    ctx.drawImage(pipeImg, 0, 0, pipeSourceWidth, pipeSourceHeight, pipe.x, 0, pipeWidth, pipe.top);
+                    ctx.drawImage(pipeImg, 0, 0, pipeSourceWidth, pipeSourceHeight, pipe.x, canvas.height - pipe.bottom, pipeWidth, pipe.bottom);
+                } else {
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+                    ctx.fillRect(pipe.x, canvas.height - pipe.bottom, pipeWidth, pipe.bottom);
+                }
+            });
+            ctx.fillStyle = 'black';
+            ctx.font = '24px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 30);
+            if (gameOver) gameOverText.style.display = 'block';
+            if (gameWon) winText.style.display = 'block';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ' && !gameOver && !gameWon) {
+                donkey.vy = jump;
+                console.log("Attempting to play jump sound...");
+                jumpSound.currentTime = 0;
+                jumpSound.play().catch(err => console.error("Jump sound failed:", err));
+            }
+            if (e.key === 'b' && gameOver) {
+                resetGame();
+            }
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (!gameOver && !gameWon) {
+                donkey.vy = jump;
+                console.log("Attempting to play jump sound via touch...");
+                jumpSound.currentTime = 0;
+                jumpSound.play().catch(err => console.error("Jump sound failed:", err));
+            }
+            e.preventDefault();
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            if (gameOver && e.target !== canvas) {
+                resetGame();
+            }
+        }, false);
+
+        function resetGame() {
+            donkey.y = 300;
+            donkey.vy = 0;
+            pipes = [createPipe()];
+            score = 0;
+            gameOver = false;
+            gameOverText.style.display = 'none';
+            gameWon = false;
+            winText.style.display = 'none';
+            jumpSound.currentTime = 0;
+        }
+
+        function gameLoop() {
+            if (!gameOver && !gameWon) update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
